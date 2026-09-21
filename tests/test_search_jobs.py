@@ -55,3 +55,20 @@ def test_single_keyword_returns_more_than_combined_phrase():
     single = search_jobs("Data Engineer", "Berlin", angebotsart=None, size=25)
     combined = search_jobs("Werkstudent Data Engineering", "Berlin", angebotsart=None, size=25)
     assert len(single) >= len(combined)
+
+@requires_api
+def test_nationwide_search_covers_more_than_single_city():
+    """
+    Regression: confirmed empirically that omitting `wo` entirely returns a
+    genuinely nationwide spread (Bielefeld, Bremen, Nurnberg, Kiel, etc.), not
+    just more results clustered in one place. Profile default is
+    target_location="Germany" (not a specific city), so `wo` must be omitted
+    rather than defaulting to "Berlin" - the original bug this test guards
+    against silently limited every user with no city preference to Berlin only.
+    """
+    nationwide = search_jobs("Data Engineer", wo=None, size=25)
+    berlin_only = search_jobs("Data Engineer", wo="Berlin", size=25)
+    assert len(nationwide) >= len(berlin_only)
+
+    cities = {job["stellenlokationen"][0]["adresse"].get("ort") for job in nationwide}
+    assert len(cities) > 3, f"expected spread across multiple cities, got: {cities}"

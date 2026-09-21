@@ -4,14 +4,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from extract_profile import extract_profile
-
 from conftest import requires_ollama
 
+
 @requires_ollama
-def test_extraction_against_known_cv():
-    ...
-
-
 def test_extraction_against_known_cv():
     """
     Regression test: locks in the fix for two bugs found during development -

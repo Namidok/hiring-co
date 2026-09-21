@@ -4,22 +4,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from classify_stage import classify
-
 from conftest import requires_ollama
 
-@requires_ollama
-def test_student_with_experience_not_misclassified_as_graduate():
-    ...
 
 @requires_ollama
-def test_completed_degree_with_experience_is_experienced_switching():
-    ...
-
-@requires_ollama
-def test_no_experience_currently_studying_is_student_no_experience():
-    ...
-
-
 def test_student_with_experience_not_misclassified_as_graduate():
     """
     Regression test for a real bug: the model saw degree_status='expected_2027'
@@ -46,6 +34,7 @@ def test_student_with_experience_not_misclassified_as_graduate():
     )
 
 
+@requires_ollama
 def test_completed_degree_with_experience_is_experienced_switching():
     profile = {
         "name": "Test Person",
@@ -61,6 +50,7 @@ def test_completed_degree_with_experience_is_experienced_switching():
     assert result["career_stage"] == "experienced_switching"
 
 
+@requires_ollama
 def test_no_experience_currently_studying_is_student_no_experience():
     profile = {
         "name": "Test Person",

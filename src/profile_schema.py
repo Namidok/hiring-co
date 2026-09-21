@@ -38,5 +38,4 @@ class Profile(BaseModel):
     must_haves: list[str] = Field(default_factory=list)
     deal_breakers: list[str] = Field(default_factory=list)
 
-    class Config:
-        use_enum_values = True
+    model_config = {"use_enum_values": True}

@@ -11,6 +11,8 @@ RANK_SCHEMA = {
     "required": ["fit_score", "verdict", "reasoning"],
 }
 
+JOB_URL_TEMPLATE = "https://www.arbeitsagentur.de/jobsuche/jobdetail/{referenznummer}"
+
 PROMPT_TEMPLATE_NATIONWIDE = """Score how well this job posting fits this candidate's profile.
 
 fit_score: 0.0-1.0, how well the role matches the candidate's actual skills,
@@ -120,13 +122,17 @@ def rank_all(profile: dict, postings: list[dict]) -> list[dict]:
     for i, posting in enumerate(postings, start=1):
         print(f"  [{i}/{total}] {posting.get('stellenangebotsTitel', '?')[:60]}", flush=True)
         result = rank_posting(profile, posting)
+        location = posting.get("stellenlokationen", [{}])[0].get("adresse", {}).get("ort", "")
+        referenznummer = posting.get("referenznummer")
         ranked.append({
             "fit_score": result["fit_score"],
             "verdict": result["verdict"],
             "reasoning": result["reasoning"],
             "title": posting.get("stellenangebotsTitel", "?"),
             "company": posting.get("firma", "?"),
-            "referenznummer": posting.get("referenznummer"),
+            "referenznummer": referenznummer,
+            "location": location,
+            "job_url": JOB_URL_TEMPLATE.format(referenznummer=referenznummer or ""),
         })
     ranked.sort(key=lambda r: r["fit_score"], reverse=True)
     return ranked

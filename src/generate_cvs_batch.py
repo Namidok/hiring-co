@@ -2,17 +2,15 @@
 Agent 4 batch mode: given a file of ranked postings (one JSON object per
 line, as written by rank_jobs.rank_all() to results/ranked/{date}.jsonl,
 or by run_loop.run_once() to results/new/{timestamp}.jsonl), generate one
-CV PDF per posting.
+CV + one cover letter per posting, both customized per role - the CV's
+bullets reordered by relevance (select_bullets.customize_structure), the
+cover letter built from the same real content (cover_letter_content).
+Content is always the real, verbatim CV content - only selection/order
+changes per posting, nothing is invented.
 
-Filenames follow: cv_{company}_{role}.pdf
-
-IMPORTANT / current limitation: this does NOT yet do per-role bullet
-selection. Every generated PDF currently renders the full, unfiltered
-cv_structure() - same content, different filename per posting. Real
-per-role customization (choosing/reordering bullets to match each job's
-emphasis) is a follow-up; wiring it in later only means swapping the
-`structure` passed to render_cv() per posting for a trimmed one - the
-naming/plumbing here does not need to change.
+Filenames:
+    results/cvs/cv_{company}_{role}.pdf
+    results/covers/cover_{company}_{role}.pdf
 
 Usage:
     python src/generate_cvs_batch.py
@@ -22,8 +20,8 @@ Usage:
         -> uses that file explicitly
 
 Postings with verdict "not_a_fit" are skipped by default (no point
-generating a CV for a role that isn't a fit) - pass --all to generate
-for every posting in the file regardless of verdict.
+generating an application for a role that isn't a fit) - pass --all to
+generate for every posting in the file regardless of verdict.
 """
 import json
 import re
@@ -32,10 +30,14 @@ from pathlib import Path
 
 from cv_structure import load_cv_structure
 from generate_cv import render_cv
+from select_bullets import customize_structure
+from cover_letter_content import build_cover_letter
+from generate_cover_letter import render_cover_letter
 
 RANKED_DIR = Path("results/ranked")
 NEW_DIR = Path("results/new")
-OUTPUT_DIR = Path("results/cvs")
+CV_OUTPUT_DIR = Path("results/cvs")
+COVER_OUTPUT_DIR = Path("results/covers")
 
 
 def _latest_file(directory: Path) -> Path | None:
@@ -78,37 +80,44 @@ def _load_postings(path: Path) -> list[dict]:
     return postings
 
 
-def generate_batch(input_path: str | None = None, include_all: bool = False) -> list[Path]:
+def generate_batch(input_path: str | None = None, include_all: bool = False) -> tuple[list[Path], list[Path]]:
     path = _resolve_input_path(input_path)
     postings = _load_postings(path)
 
     if not include_all:
         postings = [p for p in postings if p.get("verdict") != "not_a_fit"]
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    structure = load_cv_structure()
+    CV_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    COVER_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    base_structure = load_cv_structure()
 
-    written = []
+    written_cvs = []
+    written_covers = []
     seen_names = set()
+
     for posting in postings:
         company = _sanitize(posting.get("company", "unknown"))
         role = _sanitize(posting.get("title", "unknown"))
-        base_name = f"cv_{company}_{role}.pdf"
+        base_key = f"{company}_{role}"
 
-        # avoid silently overwriting when two postings sanitize to the
-        # same name (e.g. two postings at the same company with the same
-        # title) - append the referenznummer to disambiguate.
-        name = base_name
-        if name in seen_names:
+        key = base_key
+        if key in seen_names:
             ref = _sanitize(str(posting.get("referenznummer", "")))
-            name = f"cv_{company}_{role}_{ref}.pdf"
-        seen_names.add(name)
+            key = f"{base_key}_{ref}"
+        seen_names.add(key)
 
-        out_path = OUTPUT_DIR / name
-        render_cv(structure, str(out_path))
-        written.append(out_path)
+        structure = customize_structure(base_structure, posting)
 
-    return written
+        cv_path = CV_OUTPUT_DIR / f"cv_{key}.pdf"
+        render_cv(structure, str(cv_path))
+        written_cvs.append(cv_path)
+
+        letter = build_cover_letter(structure, posting)
+        cover_path = COVER_OUTPUT_DIR / f"cover_{key}.pdf"
+        render_cover_letter(letter, structure["header"], str(cover_path))
+        written_covers.append(cover_path)
+
+    return written_cvs, written_covers
 
 
 if __name__ == "__main__":
@@ -117,7 +126,10 @@ if __name__ == "__main__":
     if arg == "--all":
         arg = None
 
-    results = generate_batch(arg, include_all=include_all)
-    print(f"wrote {len(results)} CV(s) to {OUTPUT_DIR}/")
-    for p in results:
+    cvs, covers = generate_batch(arg, include_all=include_all)
+    print(f"wrote {len(cvs)} CV(s) to {CV_OUTPUT_DIR}/")
+    for p in cvs:
+        print(f"  {p}")
+    print(f"wrote {len(covers)} cover letter(s) to {COVER_OUTPUT_DIR}/")
+    for p in covers:
         print(f"  {p}")

@@ -1,10 +1,17 @@
 """
-Per-posting bullet selection: reorders (never invents or rewrites) each
-CV entry's bullets by relevance to a specific job posting's title and
-ranking reasoning, so the most relevant bullets under each job/project
-surface first for that particular role. Content is 100% unchanged from
-the real CV - only order changes. Deterministic keyword-overlap scoring,
-no LLM involved, so results are reproducible and auditable.
+Per-posting content selection: reorders (never invents or rewrites) the
+candidate's real CV content by relevance to a specific job posting's
+title and ranking reasoning. Two levels of reordering:
+
+1. Within each Professional Experience / Project entry, bullets are
+   reordered so the most relevant one leads.
+2. The PROJECTS entries themselves are reordered so the most relevant
+   project (as a whole) appears first - Professional Experience is left
+   in its original reverse-chronological order, since reordering actual
+   job history is not a normal resume convention.
+
+Content is 100% unchanged - only order changes. No LLM involved,
+deterministic keyword overlap scoring, reproducible and auditable.
 """
 import re
 
@@ -42,24 +49,42 @@ def _reorder_bullets(bullets: list[str], keywords: set[str]) -> list[str]:
     return [b for _, b in scored]
 
 
+def _entry_score(entry: dict, keywords: set[str]) -> int:
+    """An entry's relevance is its single most relevant bullet's score -
+    one strong match should be enough to pull a project to the top."""
+    if not entry["bullets"]:
+        return 0
+    return max(_score_bullet(b, keywords) for b in entry["bullets"])
+
+
 def customize_structure(structure: dict, posting: dict) -> dict:
     """
-    Returns a NEW structure dict (does not mutate the input) with every
-    experience/project entry's bullets reordered, most relevant to this
-    posting first. Entry order, headers, skills and education are left
-    untouched - this is emphasis, not rewriting.
+    Returns a NEW structure dict (does not mutate the input):
+    - experience: same entries, same order, bullets reordered within
+      each entry only.
+    - projects: bullets reordered within each entry AND the entries
+      themselves reordered, most relevant project first.
+    - skills and education are left untouched.
+    If the posting yields no usable keywords, returns the structure
+    unchanged (nothing to rank against).
     """
     keywords = _posting_keywords(posting)
     if not keywords:
         return structure
 
     new_structure = dict(structure)
+
     new_structure["experience"] = [
         {**entry, "bullets": _reorder_bullets(entry["bullets"], keywords)}
         for entry in structure["experience"]
     ]
-    new_structure["projects"] = [
+
+    projects_reordered_bullets = [
         {**entry, "bullets": _reorder_bullets(entry["bullets"], keywords)}
         for entry in structure["projects"]
     ]
+    scored_projects = list(enumerate(projects_reordered_bullets))
+    scored_projects.sort(key=lambda pair: (-_entry_score(pair[1], keywords), pair[0]))
+    new_structure["projects"] = [entry for _, entry in scored_projects]
+
     return new_structure

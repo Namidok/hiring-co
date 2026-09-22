@@ -8,6 +8,11 @@ cover letter built from the same real content (cover_letter_content).
 Content is always the real, verbatim CV content - only selection/order
 changes per posting, nothing is invented.
 
+Every generated posting is also auto-logged in the tracker
+(tracker.mark_ready) as "ready_to_apply" - generating files doesn't mean
+you've applied, so this never marks anything "applied" on its own; that
+stays a manual step via mark_applied.py once you actually submit.
+
 Filenames:
     results/cvs/cv_{company}_{role}.pdf
     results/covers/cover_{company}_{role}.pdf
@@ -33,6 +38,7 @@ from generate_cv import render_cv
 from select_bullets import customize_structure
 from cover_letter_content import build_cover_letter
 from generate_cover_letter import render_cover_letter
+from tracker import mark_ready
 
 RANKED_DIR = Path("results/ranked")
 NEW_DIR = Path("results/new")
@@ -84,7 +90,8 @@ def generate_batch(input_path: str | None = None, include_all: bool = False) -> 
     """
     Returns a list of {"posting": dict, "cv_path": Path, "cover_path": Path}
     - one entry per posting a CV/cover letter was generated for, in the
-    same order as the input file (after the not_a_fit filter).
+    same order as the input file (after the not_a_fit filter). Each
+    posting is also auto-logged in the tracker as "ready_to_apply".
     """
     path = _resolve_input_path(input_path)
     postings = _load_postings(path)
@@ -119,6 +126,8 @@ def generate_batch(input_path: str | None = None, include_all: bool = False) -> 
         cover_path = COVER_OUTPUT_DIR / f"cover_{key}.pdf"
         render_cover_letter(letter, structure["header"], str(cover_path))
 
+        mark_ready(posting, cv_file=str(cv_path), cover_letter_file=str(cover_path))
+
         results.append({"posting": posting, "cv_path": cv_path, "cover_path": cover_path})
 
     return results
@@ -131,7 +140,7 @@ if __name__ == "__main__":
         arg = None
 
     results = generate_batch(arg, include_all=include_all)
-    print(f"generated {len(results)} CV(s) + cover letter(s):")
+    print(f"generated {len(results)} CV(s) + cover letter(s) (logged as ready_to_apply):")
     for r in results:
         p = r["posting"]
         print(f"  {p.get('company')} - {p.get('title')}")

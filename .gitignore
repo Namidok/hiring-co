@@ -3,6 +3,8 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 profiles/*.json
+profiles/*.txt
 results/
 *.pdf
 .env
+loop.log

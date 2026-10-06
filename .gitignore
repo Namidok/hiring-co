@@ -7,4 +7,5 @@ profiles/*.txt
 results/
 *.pdf
 .env
-loop.loghiring_co.log
+loop.log
+hiring_co.log
